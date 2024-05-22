@@ -5,25 +5,23 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import datetime
 import re
-
-
 from logger.logger import AzureBlobLogger
 from models.request.hired_employees_request_model import HiredEmployeesRequestModel
 from models.response.base_response_model import BaseResponseModel
+from security.keyvault import KeyVaultSecrets
 
-# Datos de conexión
-DATABASE_URI = ""
-connection_string = ""
+key_vault_name = "ServicesDbKeyVault"
+key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
+key_vault_secrets = KeyVaultSecrets(vault_url=key_vault_uri)
+
+DATABASE_URI = key_vault_secrets.get_secret("DATABASEURI1")
+connection_string = key_vault_secrets.get_secret("DataCodeDLConnectionString")
 container_name = 'logger'
 
-
-# Crear el motor de conexión
 engine = create_engine(DATABASE_URI)
 
-# Crear la base declarativa
 Base = declarative_base()
 
-# Definir el modelo de la tabla
 class HiredEmployees(Base):
     """
     Represents a hired employee.
@@ -41,6 +39,7 @@ class HiredEmployees(Base):
     datetime = Column(Date, nullable=False)
     department_id = Column(Integer, nullable=False)
     job_id = Column(Integer, nullable=False)
+
 
 def to_dict(obj):
     data = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
