@@ -14,11 +14,11 @@ key_vault_name = "ServicesDbKeyVault"
 key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
 key_vault_secrets = KeyVaultSecrets(vault_url=key_vault_uri)
 
-DATABASE_URI = key_vault_secrets.get_secret("DATABASEURI1")
-connection_string = key_vault_secrets.get_secret("DataCodeDLConnectionString")
+db_connection = key_vault_secrets.get_secret("DATABASEURI1")
+dl_connection = key_vault_secrets.get_secret("DataCodeDLConnectionString")
 container_name = 'logger'
 
-engine = create_engine(DATABASE_URI)
+engine = create_engine(db_connection)
 
 Base = declarative_base()
 
@@ -93,7 +93,7 @@ def log_invalid_employee(listHiredEmployees: List[HiredEmployees]) -> BaseRespon
     response.Error = False
     response.ErrorMessage = ""
     try:
-        azure_blob_logger = AzureBlobLogger(connection_string, container_name)
+        azure_blob_logger = AzureBlobLogger(dl_connection, container_name)
         timestamp = datetime.datetime.now().isoformat()
 
         log_blob_name = f'log_hired_employees_{timestamp}.log'
