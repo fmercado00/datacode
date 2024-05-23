@@ -3,9 +3,13 @@ from fastapi import FastAPI, Body, Query, Path, status, Header, Form, File, Uplo
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+from models.request.backup_request_model import BackupTableRequestModel
 from models.request.hired_employees_request_model import HiredEmployeesRequestModel, ListHiredEmployeesRequestModel
 from models.response.base_response_model import BaseResponseModel
+from service.backup_service import BackupService
 from service.hired_employees_service import insert_hired_employee
+from security.keyvault import KeyVaultSecrets
+from service.restore_service import RestoreService
 
 
 
@@ -27,7 +31,7 @@ def add_hired_employees(listHiredEmployeesRequestModel: ListHiredEmployeesReques
     - Add a list of employees
 
     ## Parameters:
-        - None
+        - ListHiredEmployees Request Model
 
     ## Returns:
         - Return Base Response Model
@@ -43,3 +47,72 @@ def add_hired_employees(listHiredEmployeesRequestModel: ListHiredEmployeesReques
     employeesResponseModel = insert_hired_employee(employees_list)
 
     return employeesResponseModel
+
+@app.post(
+    path="/v1/maintenance/backup",
+    response_model=BaseResponseModel,
+    status_code=status.HTTP_200_OK,
+    tags=["Maintenance"],
+    )
+def backup_tables(backup_table_request_model: BackupTableRequestModel) -> BaseResponseModel:
+    """
+    # Backup Table
+    - Copy the data from a table to a file and upload it to a blob storage
+
+    ## Parameters:
+        - Backup Table Request Model
+
+    ## Returns:
+        - Return Base Response Model
+
+    """
+    response = BaseResponseModel()
+    response.Error = False
+    response.ErrorMessage = ""
+
+    key_vault_name = "ServicesDbKeyVault"
+    key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
+    key_vault_secrets = KeyVaultSecrets(vault_url=key_vault_uri)
+
+    db_connection = key_vault_secrets.get_secret("DATABASEURI1")
+    dl_connection = key_vault_secrets.get_secret("DataCodeDLConnectionString")
+    container_name = 'backups'
+
+    backup_service = BackupService(db_connection,dl_connection,container_name)
+    response = backup_service.backup_table_to_blob(backup_table_request_model.tableName)
+
+    return response
+
+@app.post(
+    path="/v1/maintenance/restore",
+    response_model=BaseResponseModel,
+    status_code=status.HTTP_200_OK,
+    tags=["Maintenance"],
+    )
+def restore_tables(backup_table_request_model: BackupTableRequestModel) -> BaseResponseModel:
+    """
+    # Backup Table
+    - Copy the data from an avro to a table
+    ## Parameters:
+        - Backup Table Request Model
+
+    ## Returns:
+        - Return Base Response Model
+
+    """
+    response = BaseResponseModel()
+    response.Error = False
+    response.ErrorMessage = ""
+
+    key_vault_name = "ServicesDbKeyVault"
+    key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
+    key_vault_secrets = KeyVaultSecrets(vault_url=key_vault_uri)
+
+    db_connection = key_vault_secrets.get_secret("DATABASEURI1")
+    dl_connection = key_vault_secrets.get_secret("DataCodeDLConnectionString")
+    container_name = 'backups'
+
+    restore_service = RestoreService(db_connection,dl_connection,container_name)
+    response = restore_service.restore_table_from_blob(backup_table_request_model.tableName)
+
+    return response
