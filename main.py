@@ -1,22 +1,37 @@
 #FastApi
 from fastapi import FastAPI, Body, Query, Path, status, Header, Form, File, UploadFile, Depends, HTTPException, Cookie
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2AuthorizationCodeBearer
 
 from models.request.backup_request_model import BackupTableRequestModel
 from models.request.hired_employees_request_model import HiredEmployeesRequestModel, ListHiredEmployeesRequestModel
 from models.response.base_response_model import BaseResponseModel
+from security.okta import OktaJWTValidator
 from service.backup_service import BackupService
 from service.hired_employees_service import insert_hired_employee
 from security.keyvault import KeyVaultSecrets
 from service.restore_service import RestoreService
 
 
-
 app = FastAPI()
 
+key_vault_name = "ServicesDbKeyVault"
+key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
+key_vault_secrets = KeyVaultSecrets(vault_url=key_vault_uri)
+
+OKTA_CLIENT_ID = key_vault_secrets.get_secret("OKTACLIENTID")
+OKTA_CLIENT_SECRET = key_vault_secrets.get_secret("OKTACLIENTSECRET")
+OkTA_ISSUER = key_vault_secrets.get_secret("OKTAISSUER")
+
+validator = OktaJWTValidator(OkTA_ISSUER)
+oauth2_scheme = OAuth2AuthorizationCodeBearer(authorizationUrl="", tokenUrl="")
+
+def validate_token(token: str = Depends(oauth2_scheme)):
+    return validator.validate_token(token)
+
+
 @app.get("/")
-async def read_root():
+async def read_root(user: dict = Depends(validate_token)):
     return {"App": "Alive!"}
 
 @app.post(
@@ -25,7 +40,7 @@ async def read_root():
     status_code=status.HTTP_200_OK,
     tags=["Employees"],
     )
-def add_hired_employees(listHiredEmployeesRequestModel: ListHiredEmployeesRequestModel) -> BaseResponseModel:
+def add_hired_employees(listHiredEmployeesRequestModel: ListHiredEmployeesRequestModel, user: dict = Depends(validate_token)) -> BaseResponseModel:
     """
     # Insert Employees
     - Add a list of employees
@@ -54,7 +69,7 @@ def add_hired_employees(listHiredEmployeesRequestModel: ListHiredEmployeesReques
     status_code=status.HTTP_200_OK,
     tags=["Maintenance"],
     )
-def backup_tables(backup_table_request_model: BackupTableRequestModel) -> BaseResponseModel:
+def backup_tables(backup_table_request_model: BackupTableRequestModel, user: dict = Depends(validate_token)) -> BaseResponseModel:
     """
     # Backup Table
     - Copy the data from a table to a file and upload it to a blob storage
@@ -70,9 +85,6 @@ def backup_tables(backup_table_request_model: BackupTableRequestModel) -> BaseRe
     response.Error = False
     response.ErrorMessage = ""
 
-    key_vault_name = "ServicesDbKeyVault"
-    key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
-    key_vault_secrets = KeyVaultSecrets(vault_url=key_vault_uri)
 
     db_connection = key_vault_secrets.get_secret("DATABASEURI1")
     dl_connection = key_vault_secrets.get_secret("DataCodeDLConnectionString")
@@ -89,7 +101,32 @@ def backup_tables(backup_table_request_model: BackupTableRequestModel) -> BaseRe
     status_code=status.HTTP_200_OK,
     tags=["Maintenance"],
     )
-def restore_tables(backup_table_request_model: BackupTableRequestModel) -> BaseResponseModel:
+def restore_tables(backup_table_request_model: BackupTableRequestModel, user: dict = Depends(validate_token)) -> BaseResponseModel:
+    """
+    # Backup Table
+    - Copy the data from an avro to a table
+    ## Parameters:
+        - Backup Table Request Model
+
+    ## Returns:
+        - Return Base Response Model
+
+    """
+    response = BaseResponseModel()
+    response.Error = False
+    response.ErrorMessage = ""
+
+    db_connection = key_vault_secrets.get_secret("DATABASEURI1")
+    dl_connection = key_vault_secrets.get_secret("DataCodeDLConnectionString")
+    container_name = 'backups'
+
+    restore_service = RestoreService(db_connection,dl_connection,container_name)
+    response = restore_service.restore_table_from_blob(backup_table_request_model.tableName)
+
+    return response
+
+
+def restore_tables(backup_table_request_model: BackupTableRequestModel, user: dict = Depends(validate_token)) -> BaseResponseModel:
     """
     # Backup Table
     - Copy the data from an avro to a table
