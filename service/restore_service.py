@@ -1,6 +1,6 @@
 import datetime
 from io import BytesIO
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import pandas as pd
 from azure.storage.blob import BlobServiceClient
 from fastavro import reader
@@ -48,8 +48,21 @@ class RestoreService:
             # Connect to SQL Server and insert data
             engine = create_engine(self.db_connection_string)
             with engine.begin() as conn:
-                df.to_sql(table_name, con=conn, if_exists='replace', index=False)
-
+                if table_name == "jobs":
+                    for index, row in df.iterrows():
+                        sql_query = text(f"EXEC upsMergeJobs @id = :param1, @job = :param2")
+                        result = conn.execute(sql_query, {'param1': row['id'], 'param2': row['job']})
+                if table_name == "departments":
+                    for index, row in df.iterrows():
+                        sql_query = text(f"EXEC upsMergeDepartments @id = :param1, @department = :param2")
+                        result = conn.execute(sql_query, {'param1': row['id'], 'param2': row['department']})
+    
+                if table_name == "hired_employees":
+                    for index, row in df.iterrows():
+                        print(row['datetime'])
+                        sql_query = text(f"EXEC upsMergeHiredEmployees @id = :param1, @name = :param2, @datetime = :param3, @department_id = :param4, @job_id = :param5")
+                        result = conn.execute(sql_query, {'param1': row['id'], 'param2': row['name'], 'param3': row['datetime'], 'param4': row['department_id'], 'param5': row['job_id']})
+                
         except Exception as e:
             response.Error = True
             response.ErrorMessage = str(e)
