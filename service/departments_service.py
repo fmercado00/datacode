@@ -1,4 +1,3 @@
-import json
 from typing import List
 from sqlalchemy import create_engine, Column, Integer, String, Float, Date
 from sqlalchemy.ext.declarative import declarative_base
@@ -7,11 +6,12 @@ from sqlalchemy.exc import IntegrityError
 import datetime
 import re
 from logger.logger import AzureBlobLogger
-from models.entities.log_hired_employee import LogHiredEmployees
-from models.request.hired_employees_request_model import HiredEmployeesRequestModel
+
+from models.entities.log_departments import LogDepartments
+from models.request.departments_request_model import DepartmentRequestModel
 from models.response.base_response_model import BaseResponseModel
 from security.keyvault import KeyVaultSecrets
-import pydantic
+
 
 key_vault_name = "ServicesDbKeyVault"
 key_vault_uri = f"https://{key_vault_name}.vault.azure.net/"
@@ -25,63 +25,49 @@ engine = create_engine(db_connection)
 
 Base = declarative_base()
 
-class HiredEmployees(Base):
+class Departments(Base):
     """
-    Represents a hired employee.
+    Represents a department.
 
     Attributes:
-        id (int): The unique identifier for the employee.
-        name (str): The name of the employee.
-        datetime (datetime.date): The date and time when the employee was hired.
-        department_id (int): The ID of the department the employee belongs to.
-        job_id (int): The ID of the job the employee is assigned to.
+        id (int): The unique identifier for the department.
+        department (str): The name of the department.
     """
-    __tablename__ = 'hired_employees'
+    __tablename__ = 'departments'
     id = Column(Integer, primary_key=True, autoincrement=False)
-    name = Column(String, nullable=False)
-    datetime = Column(Date, nullable=False)
-    department_id = Column(Integer, nullable=False)
-    job_id = Column(Integer, nullable=False)
+    department = Column(String, nullable=False)
 
 
 
-def valitate_hired_employee(hiredEmployee: HiredEmployeesRequestModel) -> bool:
+def valitate_departments(department: DepartmentRequestModel) -> bool:
     """
-    Validates the hired employee data.
+    Validates the depertment data.
 
     Args:
-        hiredEmployee (HiredEmployeesRequestModel): The hired employee object to be validated.
+        job (DepartmentsRequestModel): The hired employee object to be validated.
 
     Returns:
         bool: False if the hired employee data is valid, True otherwise.
     """
-    if hiredEmployee.id is None:
+    if department.id is None:
         return True, "El campo id es requerido"
-    if hiredEmployee.name is None:
-        return True, "El campo name es requerido"
-    if hiredEmployee.dateTime is None:
-        return True,  "El campo dateTime es requerido"
-    if hiredEmployee.departmentId is None:
-        return True, "El campo departmentId es requerido"
-    if hiredEmployee.jobId is None:
-        return True, "El campo jobId es requerido"
-    if not re.match(r'^[a-zA-Z0-9 ]+$', hiredEmployee.name):
-        return True, "El campo name solo puede contener letras y numeros"
-    if not re.match(r'^[0-9 ]+$', hiredEmployee.id):
+    if department.department is None:
+        return True, "El campo department es requerido"
+    
+    if not re.match(r'^[a-zA-Z0-9 ]+$', department.department):
+        return True, "El campo department solo puede contener letras y numeros"
+    if not re.match(r'^[0-9 ]+$', department.id):
         return True, "El campo id solo puede contener numeros"
-    if not re.match(r'^[0-9 ]+$', hiredEmployee.departmentId):
-        return True, "El campo departmentId solo puede contener numeros"
-    if not re.match(r'^[0-9 ]+$', hiredEmployee.jobId):
-        return True, "El campo jobId solo puede contener numeros"
+    
     return False, ""
 
 
-def log_invalid_employee(listLogHiredEmployees: List[LogHiredEmployees]) -> BaseResponseModel:
+def log_invalid_departments(listLogDepartments: List[LogDepartments]) -> BaseResponseModel:
     """
-    Logs the list of hired employees to an Azure Blob Storage container.
+    Logs the list of departments to an Azure Blob Storage container.
 
     Args:
-        listLogHiredEmployees (List[LogHiredEmployees]): A list of hired employees.
+        listLogDepartments (List[LogDepartments]): A list of departments.
 
     Returns:
         BaseResponseModel: The response model indicating the success or failure of the logging operation.
@@ -92,9 +78,9 @@ def log_invalid_employee(listLogHiredEmployees: List[LogHiredEmployees]) -> Base
     try:
         azure_blob_logger = AzureBlobLogger(dl_connection, container_name)
         timestamp = datetime.datetime.now().isoformat()
-        log_blob_name = f'log_hired_employees_{timestamp}.log'
-        hired_employees_json = '[' + ','.join([emp.model_dump_json() for emp in listLogHiredEmployees]) + ']'
-        azure_blob_logger.log_data(hired_employees_json, log_blob_name)
+        log_blob_name = f'departments_{timestamp}.log'
+        departments_json = '[' + ','.join([dep.model_dump_json() for dep in listLogDepartments]) + ']'
+        azure_blob_logger.log_data(departments_json, log_blob_name)
         response.Error = True
         response.ErrorMessage = "El proceso detecto registros invalidos, se genero un log con los registros."
     except Exception as e:
@@ -103,12 +89,12 @@ def log_invalid_employee(listLogHiredEmployees: List[LogHiredEmployees]) -> Base
     return response
 
 
-def insert_hired_employee(listLogHiredEmployees: List[HiredEmployeesRequestModel]) -> BaseResponseModel:
+def insert_departments(listLogDepartments: List[DepartmentRequestModel]) -> BaseResponseModel:
     """
-    Inserts a list of hired employees into the database.
+    Inserts a list of departments into the database.
 
     Args:
-        listLogHiredEmployees (List[HiredEmployeesRequestModel]): A list of HiredEmployeesRequestModel objects representing the hired employees to be inserted.
+        listLogDepartments (List[DepartmentsRequestModel]): A list of DepartmentsRequestModel objects representing the jobs to be inserted.
 
     Returns:
         BaseResponseModel: A BaseResponseModel object indicating the success or failure of the operation.
@@ -118,32 +104,29 @@ def insert_hired_employee(listLogHiredEmployees: List[HiredEmployeesRequestModel
     
     Session = sessionmaker(bind=engine)
     session = Session()
-    log_list : List[LogHiredEmployees] = []
+    log_list : List[LogDepartments] = []
     exists_validation_error = False
     enable_log = False
-    for hiredEmployee in listLogHiredEmployees:
-        exists_validation_error, error_validation_message = valitate_hired_employee(hiredEmployee)
+    for department in listLogDepartments:
+        exists_validation_error, error_validation_message = valitate_departments(department)
         if exists_validation_error:
-            log_list = add_employee_to_log(log_list, hiredEmployee, error_validation_message)
+            log_list = add_department_to_log(log_list, department, error_validation_message)
             enable_log = True
         else:
-            new_employee = HiredEmployees(
-                id=hiredEmployee.id,
-                name=hiredEmployee.name,
-                datetime=hiredEmployee.dateTime,
-                department_id=hiredEmployee.departmentId,
-                job_id=hiredEmployee.jobId
+            new_department = Departments(
+                id=department.id,
+                department=department.department,
             )
 
             try:
-                session.add(new_employee)
+                session.add(new_department)
                 session.commit()
                 response.Error = False
                 response.ErrorMessage = "Los registros se insertaron correctamente"
             except IntegrityError as e: 
                 session.rollback()
                 result = set_specific_error_message(str(e.orig))
-                log_list = add_employee_to_log(log_list, hiredEmployee, result.ErrorMessage)
+                log_list = add_department_to_log(log_list, department, result.ErrorMessage)
                 enable_log = True
                 response.Error = result.Error
                 response.ErrorMessage = result.ErrorMessage
@@ -156,20 +139,17 @@ def insert_hired_employee(listLogHiredEmployees: List[HiredEmployeesRequestModel
                 session.close()
 
     if enable_log:
-        log_response = log_invalid_employee(log_list)
+        log_response = log_invalid_departments(log_list)
         response.Error = log_response.Error
         response.ErrorMessage = log_response.ErrorMessage
     return response
     
-def add_employee_to_log(log_list: List[LogHiredEmployees], hiredEmployee: HiredEmployeesRequestModel, error_validation_message: str) -> List[LogHiredEmployees]:
-    log_employee = LogHiredEmployees()
-    log_employee.id=hiredEmployee.id
-    log_employee.name=hiredEmployee.name
-    log_employee.dateTime=hiredEmployee.dateTime
-    log_employee.departmentId=hiredEmployee.departmentId
-    log_employee.jobId=hiredEmployee.jobId
-    log_employee.error_message=error_validation_message
-    log_list.append(log_employee)
+def add_department_to_log(log_list: List[LogDepartments], department: DepartmentRequestModel, error_validation_message: str) -> List[LogDepartments]:
+    log_departments = LogDepartments()
+    log_departments.id=department.id
+    log_departments.department=department.department
+    log_departments.error_message=error_validation_message
+    log_list.append(log_departments)
     return log_list
 
 
@@ -186,7 +166,6 @@ def set_specific_error_message(error_message: str) -> BaseResponseModel:
     """
     response = BaseResponseModel()
     response.Error = True
-
     if 'FK_hired_employees_jobs' in error_message:
         response.ErrorMessage = "El job id no existe en el catálogo."
     elif 'FK_hired_employees_departments' in error_message:
