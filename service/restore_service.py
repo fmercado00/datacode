@@ -61,7 +61,7 @@ class RestoreService:
                     for index, row in df.iterrows():
                         print(row['datetime'])
                         sql_query = text(f"EXEC upsMergeHiredEmployees @id = :param1, @name = :param2, @datetime = :param3, @department_id = :param4, @job_id = :param5")
-                        result = conn.execute(sql_query, {'param1': row['id'], 'param2': row['name'], 'param3': row['datetime'], 'param4': row['department_id'], 'param5': row['job_id']})
+                        result = conn.execute(sql_query, {'param1': row['id'], 'param2': row['name'], 'param3': row['datetime'][0:23], 'param4': row['department_id'], 'param5': row['job_id']})
                 
         except Exception as e:
             response.Error = True

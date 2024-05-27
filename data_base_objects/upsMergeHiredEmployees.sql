@@ -12,16 +12,16 @@ CREATE OR ALTER PROCEDURE upsMergeHiredEmployees
 @department_id int,
 @job_id int
 AS
-    IF EXISTS (SELECT * FROM hired_employees WHERE id = @id)
-    BEGIN
-        UPDATE hired_employees
-        SET name = @name, datetime = @datetime, department_id = @department_id, job_id = @job_id
-        WHERE id = @id
-    END
-    ELSE
-    BEGIN
-        INSERT INTO hired_employees (id, name, datetime, department_id, job_id)
-        VALUES (@id, @name, CONVERT(DATETIME, @datetime, 126) , @department_id, @job_id)
-    END
+	IF EXISTS (SELECT * FROM hired_employees WHERE id = @id)
+	BEGIN
+		UPDATE hired_employees
+		SET name = @name, datetime = CONVERT(VARCHAR(19), @datetime, 120), department_id = @department_id, job_id = @job_id
+		WHERE id = @id
+	END
+	ELSE
+	BEGIN
+		INSERT INTO hired_employees (id, name, datetime, department_id, job_id)
+		VALUES (@id, @name, CONVERT(VARCHAR(19), @datetime, 120) , @department_id, @job_id)
+	END
 
 Go
