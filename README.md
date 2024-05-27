@@ -10,34 +10,15 @@ This project implements and API Service to receive new data.
 
 ![alt text](images/architecture.drawio.png)
 
+## Project Evaluation Components
+This API was built using the following modules.
+- FASTAPI
+- OKTA-JWT
+- SQLALCHEMY
+- AZURE-IDENTITY
+- AZURE-KEYVAULT
+- AZURE-STORAGE-BLOB
+
 ## Data Base Model.
 
 ![alt text](images/dbm.png)
-
-### Mermaid code diagram
-::: mermaid
-erDiagram
-
-    jobs {
-        bigint id
-        string job
-    }
-
-    departments {
-        bigint id
-        string department
-    }
-
-    hired_employees {
-        bigint id
-        string name
-        datetime datetime
-        bigint department_id
-        bigint job_id
-    }
-
-
-    hired_employees ||..o{ jobs : "Hired Employee has a job"
-    hired_employees ||..o{ departments : "Hired Employe has a department"
-
-:::
